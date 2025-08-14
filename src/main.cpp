@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <math.h>
 #include "GyverStepper.h"
 
 const size_t MAX_CMD_SIZE = 32;
@@ -289,4 +290,43 @@ double calc_MST (time_date_place input_info)
     if (MST < 0) MST++;
 
     return (MST);
+}
+
+//S и alpha должны быть В ЧАСАХ С ДЕСЯТИЧНОЙ ДРОБЬЮ
+void EQ_to_AZ (double alpha, double delta, double phi,
+               double S, double* A, double* h)
+{
+    double rad_alpha = alpha*PI/24.0;
+    double rad_delta = delta*PI/180.0;
+    double rad_S = S*PI/24.0;
+    double rad_phi = phi*PI/180.0;
+    double rad_A = 0, rad_h = 0;
+
+    double t_angle = rad_S - rad_alpha;
+    rad_h = asin (sin(rad_phi)*sin(rad_delta)
+                  + cos(rad_phi)*cos(rad_delta)*cos(t_angle));
+
+    rad_A = asin (cos(rad_delta)*sin(t_angle) / cos(rad_h));//FIXME: сделать азимут от 0 до 360
+
+    *A = rad_A * 180 / PI;
+    *h = rad_h * 180 / PI;
+}
+
+void AZ_to_EQ (double A, double h, double phi,
+               double S, double* alpha, double* delta)
+{
+    double rad_A = A*PI/180.0;
+    double rad_h = h*PI/180.0;
+    double rad_S = S*PI/24.0;
+    double rad_phi = phi*PI/180.0;
+    double rad_alpha = 0, rad_delta = 0;
+
+    double t_angle = acos ( (sin(rad_h) - sin(rad_phi)*sin(rad_delta))
+                            / (cos(rad_phi)*cos(rad_delta)));
+
+    rad_alpha = rad_S - t_angle;
+    rad_delta = acos (cos(rad_h)*sin(rad_A) / sin(t_angle));
+
+    *alpha = rad_alpha/PI*24.0;
+    *delta = rad_delta/PI*180.0;
 }
