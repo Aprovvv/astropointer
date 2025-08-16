@@ -1,14 +1,13 @@
 #include <Arduino.h>
-#include <math.h>
-#include "GyverStepper.h"
+#include "GyverStepper2.h"
 
 const size_t MAX_CMD_SIZE = 32;
 
-const int RA_DIR_PIN = 2, RA_STEP_PIN = 3;
-const int DEC_DIR_PIN = 2, DEC_STEP_PIN = 3;//FIXME
+const int AZ_DIR_PIN = 2, AZ_STEP_PIN = 3;
+const int H_DIR_PIN = 4, H_STEP_PIN = 5;
 const int STEPS_PER_REV = 200;
-const int MICROSTEP = 32;//пишем величину 1/микрошаг, типо 16
-const double RA_GEAR_RATIO = 1, DEC_GEAR_RATIO = 1;
+const int MICROSTEP = 1;//пишем величину 1/микрошаг, типо 16
+const double AZ_GEAR_RATIO = 1, H_GEAR_RATIO = 1;
 
 const int DAYS_IN_MONTH [12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
@@ -31,6 +30,7 @@ struct command
 };
 
 int Serial_read_word (char* dest, size_t size);
+int Serial_wait_read_word (char* dest, size_t size);
 
 void (*resetFunc) ();
 
@@ -42,33 +42,42 @@ int right_func ();
 int left_func ();
 
 static bool is_number (const char* str, size_t size);
+static bool is_nat_number (const char* str, size_t size);
 
 double calc_MST (time_date_place input_info);
+void AZ_to_EQ (double A, double h, double phi,
+               double S, double* alpha, double* delta);
+void EQ_to_AZ (double alpha, double delta, double phi,
+               double S, double* A, double* h);
 
 const command cmd_list[] =
 {
     {"goto", goto_func},
-    {"calibrate1", calibrate1_func},
+    {"cal", calibrate1_func},
     {"up", up_func},
     {"down", down_func},
     {"right", right_func},
     {"left", left_func},
 };
 
-GStepper<STEPPER2WIRE> AZ_motor(STEPS_PER_REV*MICROSTEP*RA_GEAR_RATIO,
-                                 RA_STEP_PIN, RA_DIR_PIN);
+GStepper2<STEPPER2WIRE> AZ_motor(STEPS_PER_REV*MICROSTEP*AZ_GEAR_RATIO,
+                                 AZ_STEP_PIN, AZ_DIR_PIN);
+GStepper2<STEPPER2WIRE> H_motor(STEPS_PER_REV*MICROSTEP*AZ_GEAR_RATIO,
+                                 H_STEP_PIN, H_DIR_PIN);
+
+struct time_date_place input_info = {0};
 
 void setup()
 {
     Serial.begin (9600);
-    AZ_motor.setRunMode (FOLLOW_POS);
-    AZ_motor.setMaxSpeed (600);
-    AZ_motor.setAcceleration(300);
+    AZ_motor.setMaxSpeed (100);
+    AZ_motor.setAcceleration(50);
+
+    H_motor.setMaxSpeed (100);
+    H_motor.setAcceleration(50);
 
     //тут тестирую, как работают функции для астро расчетов
-    time_date_place input_info = {2025, 8, 14, 5, 29, 48.4827, 135.083, 10};
-    //Serial.print ("ST = ");
-    //Serial.println (calc_JD (input_info));
+    input_info = {2025, 8, 14, 5, 29, 48.4827, 135.083, 10};
     Serial.println (calc_MST (input_info), 6);
 }
 
@@ -76,6 +85,7 @@ void loop()
 {
     loopstart:
     AZ_motor.tick();
+    H_motor.tick();
     char cmd [MAX_CMD_SIZE] = "";
     if (Serial.available())
     {
@@ -124,6 +134,13 @@ int Serial_read_word(char* dest, size_t size)
     return i;
 }
 
+int Serial_wait_read_word (char* dest, size_t size)
+{
+    while (!Serial.available ())
+        ;
+    return Serial_read_word (dest, size);
+}
+
 int goto_func ()
 {
     double dest_RA = 0, dest_DEC = 0;
@@ -158,6 +175,97 @@ int goto_func ()
 
 int calibrate1_func ()
 {
+    char str [MAX_CMD_SIZE] = "";
+    Serial.println ("Enter current date (dd mm yyyy, separated with space)");
+    Serial_wait_read_word (str, MAX_CMD_SIZE);
+    if (strcmp (str, "") == 0 || !is_nat_number(str, MAX_CMD_SIZE))
+    {
+        Serial.println ("Syntax error: expected number of the day of the month");
+        return 1;
+    }
+    input_info.date = strtol (str, NULL, 0);
+    Serial_wait_read_word (str, MAX_CMD_SIZE);
+    if (strcmp (str, "") == 0 || !is_nat_number(str, MAX_CMD_SIZE))
+    {
+        Serial.println ("Syntax error: expected number of the month");
+        return 1;
+    }
+    input_info.month = strtol (str, NULL, 0);
+    Serial_wait_read_word (str, MAX_CMD_SIZE);
+    if (strcmp (str, "") == 0 || !is_nat_number(str, MAX_CMD_SIZE))
+    {
+        Serial.println ("Syntax error: expected year");
+        return 1;
+    }
+    input_info.year = strtol (str, NULL, 0);
+
+    Serial.println ("Enter your longitude");
+    Serial_wait_read_word (str, MAX_CMD_SIZE);
+    if (strcmp (str, "") == 0 || !is_number(str, MAX_CMD_SIZE))
+    {
+        Serial.println ("Syntax error: expected longitude");
+        return 1;
+    }
+    input_info.longitude = strtod (str, NULL);
+
+    Serial.println ("Enter your latitude");
+    Serial_wait_read_word (str, MAX_CMD_SIZE);
+    if (strcmp (str, "") == 0 || !is_number(str, MAX_CMD_SIZE))
+    {
+        Serial.println ("Syntax error: expected latitude");
+        return 1;
+    }
+    input_info.latitude = strtod (str, NULL);
+
+    Serial.println ("Enter your time zone: UTC + ...");
+    Serial_wait_read_word (str, MAX_CMD_SIZE);
+    if (strcmp (str, "") == 0 || !is_number(str, MAX_CMD_SIZE))
+    {
+        Serial.println ("Syntax error: expected time zone");
+        return 1;
+    }
+    input_info.time_zone = strtod (str, NULL);
+
+    Serial.println ("Enter time (hh mm, separated with space)");
+    Serial_wait_read_word (str, MAX_CMD_SIZE);
+    if (strcmp (str, "") == 0 || !is_nat_number(str, MAX_CMD_SIZE))
+    {
+        Serial.println ("Syntax error: number of hours");
+        return 1;
+    }
+    input_info.hour = strtol (str, NULL, 0);
+    Serial_wait_read_word (str, MAX_CMD_SIZE);
+    if (strcmp (str, "") == 0 || !is_nat_number(str, MAX_CMD_SIZE))
+    {
+        Serial.println ("Syntax error: number of minutes");
+        return 1;
+    }
+    input_info.minute = strtol (str, NULL, 0);
+
+    double alpha = 0, delta = 0;
+
+    Serial.println ("Enter equatorial coordinates of the current object,");
+    Serial_wait_read_word (str, MAX_CMD_SIZE);
+    if (strcmp (str, "") == 0 || !is_number(str, MAX_CMD_SIZE))
+    {
+        Serial.println ("Syntax error: expected RA");
+        return 1;
+    }
+    alpha = strtod (str, NULL);
+    Serial_wait_read_word (str, MAX_CMD_SIZE);
+    if (strcmp (str, "") == 0 || !is_number(str, MAX_CMD_SIZE))
+    {
+        Serial.println ("Syntax error: expected DEC");
+        return 1;
+    }
+    delta = strtod (str, NULL);
+
+    double A = 0, h = 0, S = 0;
+    S = calc_MST (input_info);
+    EQ_to_AZ (alpha, delta, input_info.latitude, S, &A, &h);
+    AZ_motor.setCurrent ((int)(A*MICROSTEP*AZ_GEAR_RATIO));
+    H_motor.setCurrent ((int)(h*MICROSTEP*H_GEAR_RATIO));
+
     return 0;
 }
 
@@ -186,6 +294,8 @@ int up_func ()
     double angle = 0;
     if (get_move_angle (&angle) == 1)
         return 1;
+
+    H_motor.setTargetDeg (angle, RELATIVE);
     return 0;
 }
 
@@ -194,6 +304,8 @@ int down_func ()
     double angle = 0;
     if (get_move_angle (&angle) == 1)
         return 1;
+
+    H_motor.setTargetDeg (-angle, RELATIVE);
     return 0;
 }
 
@@ -224,6 +336,18 @@ static bool is_number (const char* str, size_t size)
         if (str[i] == '\0')
             return 1;
         if (!isdigit(str[i]) && str[i] != '.')
+            return 0;
+    }
+    return 1;
+}
+
+static bool is_nat_number (const char* str, size_t size)
+{
+    for (size_t i = 0; i < size; i++)
+    {
+        if (str[i] == '\0')
+            return 1;
+        if (!isdigit(str[i]))
             return 0;
     }
     return 1;
@@ -289,7 +413,7 @@ double calc_MST (time_date_place input_info)
     if (MST > 1) MST--;//учли, что может измениться дата из-за часового пояса
     if (MST < 0) MST++;
 
-    return (MST);
+    return (MST*24.0);//на вывод удобнее в часах
 }
 
 //S и alpha должны быть В ЧАСАХ С ДЕСЯТИЧНОЙ ДРОБЬЮ
@@ -328,5 +452,5 @@ void AZ_to_EQ (double A, double h, double phi,
     rad_delta = acos (cos(rad_h)*sin(rad_A) / sin(t_angle));
 
     *alpha = rad_alpha/PI*24.0;
-    *delta = rad_delta/PI*180.0;
+    *delta = rad_delta/PI*180.0;//FIXME: не знаю точно что, но что-то пофиксить точно надо
 }
