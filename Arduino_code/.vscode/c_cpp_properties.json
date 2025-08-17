@@ -8,9 +8,9 @@
         {
             "name": "PlatformIO",
             "includePath": [
-                "c:/Users/user/Documents/PlatformIO/Projects/astropointer/include",
-                "c:/Users/user/Documents/PlatformIO/Projects/astropointer/src",
-                "c:/Users/user/Documents/PlatformIO/Projects/astropointer/.pio/libdeps/uno/GyverStepper/src",
+                "c:/Users/user/Documents/PlatformIO/Projects/astropointer/Arduino_code/include",
+                "c:/Users/user/Documents/PlatformIO/Projects/astropointer/Arduino_code/src",
+                "c:/Users/user/Documents/PlatformIO/Projects/astropointer/Arduino_code/.pio/libdeps/uno/GyverStepper/src",
                 "C:/Users/user/.platformio/packages/framework-arduino-avr/cores/arduino",
                 "C:/Users/user/.platformio/packages/framework-arduino-avr/variants/standard",
                 "C:/Users/user/.platformio/packages/framework-arduino-avr/libraries/EEPROM/src",
@@ -23,9 +23,9 @@
             "browse": {
                 "limitSymbolsToIncludedHeaders": true,
                 "path": [
-                    "c:/Users/user/Documents/PlatformIO/Projects/astropointer/include",
-                    "c:/Users/user/Documents/PlatformIO/Projects/astropointer/src",
-                    "c:/Users/user/Documents/PlatformIO/Projects/astropointer/.pio/libdeps/uno/GyverStepper/src",
+                    "c:/Users/user/Documents/PlatformIO/Projects/astropointer/Arduino_code/include",
+                    "c:/Users/user/Documents/PlatformIO/Projects/astropointer/Arduino_code/src",
+                    "c:/Users/user/Documents/PlatformIO/Projects/astropointer/Arduino_code/.pio/libdeps/uno/GyverStepper/src",
                     "C:/Users/user/.platformio/packages/framework-arduino-avr/cores/arduino",
                     "C:/Users/user/.platformio/packages/framework-arduino-avr/variants/standard",
                     "C:/Users/user/.platformio/packages/framework-arduino-avr/libraries/EEPROM/src",
