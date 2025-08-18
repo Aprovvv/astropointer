@@ -6,4 +6,5 @@
     <color name="light_background">#FFFBFE</color> <!-- Светлый фон -->
     <color name="button_outline">@color/light_primary</color> <!-- Фиолетовый контур -->
     <color name="button_bg">@color/light_background</color>     <!-- Совпадает со светлым фоном -->
+    <color name="ripple_color">#F9BEBE</color> <!-- Чёрный с 12% прозрачностью -->
 </resources>
