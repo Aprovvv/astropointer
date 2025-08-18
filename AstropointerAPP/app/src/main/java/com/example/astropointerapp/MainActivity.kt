@@ -1,6 +1,8 @@
-package com.example.astropointerapp   // <- ЗАМЕНИ на пакет твоего проекта
+package com.example.astropointerAPP
 
 import android.Manifest
+import android.annotation.SuppressLint
+import android.app.AlertDialog
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
@@ -8,161 +10,197 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
+import android.provider.Settings
 import android.widget.Button
-import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import java.io.IOException
-import java.util.*
+import java.util.UUID
 
 class MainActivity : AppCompatActivity() {
-    companion object {
-        private const val TAG = "BT_TEST"
-        private const val REQUEST_ENABLE_BT = 1
-        private const val REQUEST_PERMISSIONS = 2
-        // SPP UUID (стандарт для HC-05 / классического Bluetooth SPP)
-        private val SPP_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
-    }
 
-    // ЗАМЕНИТЕ на MAC адрес вашего HC-05/HC-06 (сначала спарьте модуль в настройках Android)
-    private val deviceAddress = "98:DA:60:0F:62:B2"
+    private val REQUEST_PERMISSIONS = 100
+    private val REQUEST_ENABLE_BT = 101
 
-    private val btAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
-    private var btSocket: BluetoothSocket? = null
-
-    private lateinit var btnConnect: Button
-    private lateinit var btnOn: Button
-    private lateinit var btnOff: Button
-    private lateinit var tvStatus: TextView
+    private var bluetoothAdapter: BluetoothAdapter? = null
+    private var bluetoothSocket: BluetoothSocket? = null
+    private val uuidSPP: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main) // подключаем layout выше
+        setContentView(R.layout.activity_main)
 
-        btnConnect = findViewById(R.id.btnConnect)
-        btnOn = findViewById(R.id.btnOn)
-        btnOff = findViewById(R.id.btnOff)
-        tvStatus = findViewById(R.id.tvStatus)
-
-        btnConnect.setOnClickListener { startConnect() }
-        btnOn.setOnClickListener { sendData("1") }
-        btnOff.setOnClickListener { sendData("0") }
-
-        if (btAdapter == null) {
-            tvStatus.text = "Bluetooth not supported on this device"
-            btnConnect.isEnabled = false
-            btnOn.isEnabled = false
-            btnOff.isEnabled = false
+        bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+        if (bluetoothAdapter == null) {
+            Toast.makeText(this, "Bluetooth не поддерживается", Toast.LENGTH_LONG).show()
             return
         }
 
-        // Запросить разрешения, если нужно
-        ensurePermissions()
-    }
+        // Запросим пермишны на Android 12+
+        requestMissingPermissionsIfNeeded()
 
-    private fun ensurePermissions() {
-        val perms = ArrayList<String>()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // Android 12+
-            perms.add(Manifest.permission.BLUETOOTH_CONNECT)
-            perms.add(Manifest.permission.BLUETOOTH_SCAN)
-        } else {
-            // Для старых версий иногда нужен доступ к локации, чтобы сканировать (если потребуется)
-            perms.add(Manifest.permission.ACCESS_FINE_LOCATION)
+        val btnConnect = findViewById<Button>(R.id.btnConnect)
+        val btnSend = findViewById<Button>(R.id.btnSend)
+
+        btnConnect.setOnClickListener {
+            if (!ensureBluetoothEnabled()) return@setOnClickListener
+            showPairedDevicesDialog()
         }
 
-        val missing = perms.filter { ActivityCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
+        btnSend.setOnClickListener {
+            if (bluetoothSocket?.isConnected == true) {
+                try {
+                    val msg = "1"
+                    bluetoothSocket?.outputStream?.write(msg.toByteArray())
+                    Toast.makeText(this, "Sent: $msg", Toast.LENGTH_SHORT).show()
+                } catch (e: IOException) {
+                    Toast.makeText(this, "Ошибка отправки: ${e.message}", Toast.LENGTH_SHORT).show()
+                } catch (se: SecurityException) {
+                    Toast.makeText(this, "Нет разрешения для отправки", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                Toast.makeText(this, "Нет соединения", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /** ========== Пермишны ========== */
+
+    private fun isSPlus() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+
+    private fun hasConnectPermission(): Boolean =
+        !isSPlus() || ContextCompat.checkSelfPermission(
+            this, Manifest.permission.BLUETOOTH_CONNECT
+        ) == PackageManager.PERMISSION_GRANTED
+
+    private fun hasScanPermission(): Boolean =
+        !isSPlus() || ContextCompat.checkSelfPermission(
+            this, Manifest.permission.BLUETOOTH_SCAN
+        ) == PackageManager.PERMISSION_GRANTED
+
+    private fun requestMissingPermissionsIfNeeded() {
+        if (!isSPlus()) return
+        val missing = mutableListOf<String>()
+        if (!hasConnectPermission()) missing += Manifest.permission.BLUETOOTH_CONNECT
+        if (!hasScanPermission()) missing += Manifest.permission.BLUETOOTH_SCAN
         if (missing.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, missing.toTypedArray(), REQUEST_PERMISSIONS)
         }
     }
 
-    private fun startConnect() {
-        // Включить BT, если выключен
-        if (btAdapter?.isEnabled == false) {
-            val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
-            startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT)
+    private fun ensureBluetoothEnabled(): Boolean {
+        val adapter = bluetoothAdapter ?: return false
+        if (adapter.isEnabled) return true
+
+        // На Android 12+ сначала просим пермишны, если их ещё нет
+        if (isSPlus() && !hasConnectPermission()) {
+            requestMissingPermissionsIfNeeded()
+            Toast.makeText(this, "Разрешите доступ к Bluetooth", Toast.LENGTH_SHORT).show()
+            return false
+        }
+
+        // Открываем системные настройки Bluetooth — пользователь включает BT и возвращается
+        startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+        Toast.makeText(this, "Включите Bluetooth и вернитесь в приложение", Toast.LENGTH_SHORT).show()
+        return false
+    }
+
+
+    /** ========== UI: список устройств ========== */
+
+    @SuppressLint("MissingPermission") // мы вручную проверяем hasConnectPermission перед доступом
+    private fun showPairedDevicesDialog() {
+        if (isSPlus() && !hasConnectPermission()) {
+            requestMissingPermissionsIfNeeded()
+            Toast.makeText(this, "Нет разрешения BLUETOOTH_CONNECT", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // Подключаемся в отдельном потоке (не в UI)
-        tvStatus.text = "Connecting..."
+        val paired: Set<BluetoothDevice>? = bluetoothAdapter?.bondedDevices
+        if (paired.isNullOrEmpty()) {
+            Toast.makeText(this, "Нет спаренных устройств", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val devices = paired.toList()
+        val names = mutableListOf("Назад")
+        for (d in devices) {
+            // Доступ к имени тоже требует CONNECT на S+
+            val name = if (isSPlus()) {
+                if (hasConnectPermission()) d.name else "(без имени)"
+            } else d.name
+            names += (name ?: "(без имени)")
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Выберите устройство")
+            .setItems(names.toTypedArray()) { dialog, which ->
+                if (which == 0) {
+                    dialog.dismiss()
+                } else {
+                    val device = devices[which - 1]
+                    connectToDevice(device)
+                }
+            }
+            .show()
+    }
+
+    /** ========== Подключение ========== */
+
+    @SuppressLint("MissingPermission") // все вызовы ограждены проверками
+    private fun connectToDevice(device: BluetoothDevice) {
+        if (isSPlus() && !hasConnectPermission()) {
+            requestMissingPermissionsIfNeeded()
+            Toast.makeText(this, "Нет разрешения BLUETOOTH_CONNECT", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        Toast.makeText(this, "Подключение к ${device.name ?: device.address}…", Toast.LENGTH_SHORT).show()
+
         Thread {
             try {
-                // Перед использованием некоторых методов на Android 12+ требуется BLUETOOTH_CONNECT
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                        runOnUiThread { tvStatus.text = "No BLUETOOTH_CONNECT permission" }
-                        return@Thread
-                    }
+                // cancelDiscovery требует BLUETOOTH_SCAN на S+
+                if (!isSPlus() || hasScanPermission()) {
+                    try {
+                        bluetoothAdapter?.cancelDiscovery()
+                    } catch (_: SecurityException) { /* пропустим, если нет разрешения */ }
                 }
 
-                val device: BluetoothDevice = btAdapter!!.getRemoteDevice(deviceAddress)
-                btAdapter.cancelDiscovery()
-                btSocket = device.createRfcommSocketToServiceRecord(SPP_UUID)
-                btSocket?.connect()
-                runOnUiThread { tvStatus.text = "Connected to ${device.name ?: device.address}" }
+                bluetoothSocket = device.createRfcommSocketToServiceRecord(uuidSPP)
+                bluetoothSocket?.connect()
 
-                // Запускаем чтение входящего потока
-                startReaderThread()
+                runOnUiThread {
+                    Toast.makeText(
+                        this,
+                        "Успешно подключено к ${device.name ?: device.address}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
             } catch (e: IOException) {
-                Log.e(TAG, "Connect error", e)
-                runOnUiThread { tvStatus.text = "Connect failed: ${e.message}" }
-                try { btSocket?.close() } catch (_: Exception) {}
-                btSocket = null
+                runOnUiThread {
+                    Toast.makeText(this, "Ошибка подключения: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+                try { bluetoothSocket?.close() } catch (_: IOException) {}
+            } catch (se: SecurityException) {
+                runOnUiThread {
+                    Toast.makeText(this, "Нет нужных Bluetooth-разрешений", Toast.LENGTH_SHORT).show()
+                }
             }
         }.start()
     }
 
-    private fun startReaderThread() {
-        val socket = btSocket ?: return
-        Thread {
-            val buffer = ByteArray(1024)
-            try {
-                val input = socket.inputStream
-                while (true) {
-                    val read = input.read(buffer)
-                    if (read > 0) {
-                        val s = String(buffer, 0, read)
-                        runOnUiThread { tvStatus.text = "Received: $s" }
-                    }
-                }
-            } catch (e: IOException) {
-                Log.e(TAG, "Read error", e)
-                runOnUiThread { tvStatus.text = "Connection lost" }
-            }
-        }.start()
-    }
+    /** ========== Результаты запросов ========== */
 
-    private fun sendData(text: String) {
-        Thread {
-            try {
-                val socket = btSocket
-                if (socket == null || !socket.isConnected) {
-                    runOnUiThread { tvStatus.text = "Not connected" }
-                    return@Thread
-                }
-
-                // Проверка разрешения для Android 12+
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                        runOnUiThread { tvStatus.text = "No BLUETOOTH_CONNECT permission" }
-                        return@Thread
-                    }
-                }
-
-                socket.outputStream.write(text.toByteArray())
-                runOnUiThread { tvStatus.text = "Sent: $text" }
-            } catch (e: IOException) {
-                Log.e(TAG, "Send error", e)
-                runOnUiThread { tvStatus.text = "Send failed: ${e.message}" }
-            }
-        }.start()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        try { btSocket?.close() } catch (_: Exception) {}
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_PERMISSIONS) {
+            // Можно перезапустить действие, если все выданы
+        }
     }
 }

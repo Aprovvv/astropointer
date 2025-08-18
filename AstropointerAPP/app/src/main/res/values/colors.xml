@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
+    <!-- Основные цвета для светлой темы -->
+    <color name="light_primary">#ED4E4E</color>  <!-- Фиолетовый -->
+    <color name="light_onPrimary">#FFFFFF</color> <!-- Белый текст -->
+    <color name="light_background">#FFFBFE</color> <!-- Светлый фон -->
+    <color name="button_outline">@color/light_primary</color> <!-- Фиолетовый контур -->
+    <color name="button_bg">@color/light_background</color>     <!-- Совпадает со светлым фоном -->
 </resources>
