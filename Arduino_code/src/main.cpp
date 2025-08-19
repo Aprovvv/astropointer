@@ -2,21 +2,11 @@
 #include <SoftwareSerial.h>
 #include "GyverStepper2.h"
 
-const size_t MAX_CMD_SIZE = 32;
-
-const int AZ_DIR_PIN = 2, AZ_STEP_PIN = 3;
-const int H_DIR_PIN = 4, H_STEP_PIN = 5;
-const int STEPS_PER_REV = 200;
-const int MICROSTEP = 1;//пишем величину 1/микрошаг, типо 16
-const double AZ_GEAR_RATIO = 1, H_GEAR_RATIO = 1;
-
-const int DAYS_IN_MONTH [12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-
 struct time_date_place
 {
     int year;
     int month;
-    int date;
+    int day;
     int hour;
     int minute;
     double latitude;
@@ -24,13 +14,14 @@ struct time_date_place
     double time_zone;
 };
 
+const size_t MAX_CMD_SIZE = 64;
 struct command
 {
     char cmd_name [MAX_CMD_SIZE];
     int (*cmd_func) ();
 };
 
-int Serial_read_word (char* dest, size_t size);
+int BTSerial_read_word (char* dest, size_t size);
 int Serial_wait_read_word (char* dest, size_t size);
 
 void (*resetFunc) ();
@@ -42,6 +33,7 @@ int down_func ();
 int right_func ();
 int left_func ();
 int stop_func ();
+int setspeed_func ();
 
 static bool is_number (const char* str, size_t size);
 static bool is_nat_number (const char* str, size_t size);
@@ -61,29 +53,38 @@ const command cmd_list[] =
     {"right", right_func},
     {"left", left_func},
     {"stop", stop_func},
+    {"setspeed", setspeed_func},
 };
+
+const int RXPin = 12, TXPin = 13;
+const int AZ_DIR_PIN = 2, AZ_STEP_PIN = 3;
+const int H_DIR_PIN = 4, H_STEP_PIN = 5;
+const int STEPS_PER_REV = 200;
+const int MICROSTEP = 16;//пишем величину 1/микрошаг, типо 16
+const double AZ_GEAR_RATIO = 1, H_GEAR_RATIO = 1;
+
+const int DAYS_IN_MONTH [12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
 GStepper2<STEPPER2WIRE> AZ_motor(STEPS_PER_REV*MICROSTEP*AZ_GEAR_RATIO,
                                  AZ_STEP_PIN, AZ_DIR_PIN);
 GStepper2<STEPPER2WIRE> H_motor(STEPS_PER_REV*MICROSTEP*AZ_GEAR_RATIO,
                                  H_STEP_PIN, H_DIR_PIN);
-
 struct time_date_place input_info = {0};
-
-const int RXPin = 12, TXPin = 13;
-
 SoftwareSerial BTSerial (RXPin, TXPin);
+double users_speed = 32;
 
 void setup()
 {
     Serial.begin (9600);
     BTSerial.begin (9600);
 
-    AZ_motor.setMaxSpeed (100);
-    AZ_motor.setAcceleration(50);
+    AZ_motor.setMaxSpeed (512*MICROSTEP);
+    AZ_motor.setAcceleration(512*MICROSTEP);
 
     H_motor.setMaxSpeed (100);
     H_motor.setAcceleration(50);
+
+    //AZ_motor.setTargetDeg (3600L, ABSOLUTE);
 
     //тут тестирую, как работают функции для астро расчетов
     input_info = {2025, 8, 14, 5, 29, 48.4827, 135.083, 10};
@@ -98,7 +99,7 @@ void loop()
     char cmd [MAX_CMD_SIZE] = "";
     if (BTSerial.available())
     {
-        Serial_read_word (cmd, MAX_CMD_SIZE);
+        BTSerial_read_word (cmd, MAX_CMD_SIZE);
         for (size_t i = 0; i < sizeof(cmd_list) / sizeof (command); i++)
         {
             if (strcmp (cmd, cmd_list[i].cmd_name) == 0)
@@ -114,7 +115,7 @@ void loop()
 
 }
 
-int Serial_read_word(char* dest, size_t size)
+int BTSerial_read_word(char* dest, size_t size)
 {
     size_t i = 0;
     char ch = 48;
@@ -148,14 +149,14 @@ int Serial_wait_read_word (char* dest, size_t size)
 {
     while (!Serial.available ())
         ;
-    return Serial_read_word (dest, size);
+    return BTSerial_read_word (dest, size);
 }
 
 int goto_func ()
 {
     double dest_RA = 0, dest_DEC = 0;
     char str [MAX_CMD_SIZE] = "";
-    Serial_read_word (str, MAX_CMD_SIZE);
+    BTSerial_read_word (str, MAX_CMD_SIZE);
     if (strcmp (str, "") == 0 || !is_number(str, MAX_CMD_SIZE))
     {
         Serial.println ("Syntax error: expected 2 coordinates");
@@ -164,7 +165,7 @@ int goto_func ()
 
     dest_RA = strtod (str, NULL);
 
-    Serial_read_word (str, MAX_CMD_SIZE);
+    BTSerial_read_word (str, MAX_CMD_SIZE);
     if (strcmp (str, "") == 0 || !is_number(str, MAX_CMD_SIZE))
     {
         Serial.println ("Syntax error: expected 2 coordinates");
@@ -173,7 +174,7 @@ int goto_func ()
 
     dest_DEC = strtod (str, NULL);
 
-    Serial_read_word (str, MAX_CMD_SIZE);
+    BTSerial_read_word (str, MAX_CMD_SIZE);
     if (strcmp (str, "") != 0)
     {
         Serial.println ("Syntax error: unexpected command after coordinates");
@@ -186,97 +187,35 @@ int goto_func ()
 int calibrate1_func ()
 {
     char str [MAX_CMD_SIZE] = "";
-    Serial.println ("Enter current date (dd mm yyyy, separated with space)");
-    Serial_wait_read_word (str, MAX_CMD_SIZE);
-    if (strcmp (str, "") == 0 || !is_nat_number(str, MAX_CMD_SIZE))
-    {
-        Serial.println ("Syntax error: expected number of the day of the month");
-        return 1;
-    }
-    input_info.date = strtol (str, NULL, 0);
-    Serial_wait_read_word (str, MAX_CMD_SIZE);
-    if (strcmp (str, "") == 0 || !is_nat_number(str, MAX_CMD_SIZE))
-    {
-        Serial.println ("Syntax error: expected number of the month");
-        return 1;
-    }
-    input_info.month = strtol (str, NULL, 0);
-    Serial_wait_read_word (str, MAX_CMD_SIZE);
-    if (strcmp (str, "") == 0 || !is_nat_number(str, MAX_CMD_SIZE))
-    {
-        Serial.println ("Syntax error: expected year");
-        return 1;
-    }
-    input_info.year = strtol (str, NULL, 0);
-
-    Serial.println ("Enter your longitude");
-    Serial_wait_read_word (str, MAX_CMD_SIZE);
-    if (strcmp (str, "") == 0 || !is_number(str, MAX_CMD_SIZE))
-    {
-        Serial.println ("Syntax error: expected longitude");
-        return 1;
-    }
-    input_info.longitude = strtod (str, NULL);
-
-    Serial.println ("Enter your latitude");
-    Serial_wait_read_word (str, MAX_CMD_SIZE);
-    if (strcmp (str, "") == 0 || !is_number(str, MAX_CMD_SIZE))
-    {
-        Serial.println ("Syntax error: expected latitude");
-        return 1;
-    }
-    input_info.latitude = strtod (str, NULL);
-
-    Serial.println ("Enter your time zone: UTC + ...");
-    Serial_wait_read_word (str, MAX_CMD_SIZE);
-    if (strcmp (str, "") == 0 || !is_number(str, MAX_CMD_SIZE))
-    {
-        Serial.println ("Syntax error: expected time zone");
-        return 1;
-    }
-    input_info.time_zone = strtod (str, NULL);
-
-    Serial.println ("Enter time (hh mm, separated with space)");
-    Serial_wait_read_word (str, MAX_CMD_SIZE);
-    if (strcmp (str, "") == 0 || !is_nat_number(str, MAX_CMD_SIZE))
-    {
-        Serial.println ("Syntax error: number of hours");
-        return 1;
-    }
-    input_info.hour = strtol (str, NULL, 0);
-    Serial_wait_read_word (str, MAX_CMD_SIZE);
-    if (strcmp (str, "") == 0 || !is_nat_number(str, MAX_CMD_SIZE))
-    {
-        Serial.println ("Syntax error: number of minutes");
-        return 1;
-    }
-    input_info.minute = strtol (str, NULL, 0);
 
     double alpha = 0, delta = 0;
-
-    Serial.println ("Enter current RA (IN HOURS WITH POINT):");
-    Serial_wait_read_word (str, MAX_CMD_SIZE);
-    if (strcmp (str, "") == 0 || !is_number(str, MAX_CMD_SIZE))
-    {
-        Serial.println ("Syntax error: expected RA");
-        return 1;
-    }
+    BTSerial_read_word (str, MAX_CMD_SIZE);
     alpha = strtod (str, NULL);
-
-    Serial.println ("Enter current RA (IN DEGREES WITH POINT):");
-    Serial_wait_read_word (str, MAX_CMD_SIZE);
-    if (strcmp (str, "") == 0 || !is_number(str, MAX_CMD_SIZE))
-    {
-        Serial.println ("Syntax error: expected DEC");
-        return 1;
-    }
+    BTSerial_read_word (str, MAX_CMD_SIZE);
     delta = strtod (str, NULL);
 
-    double A = 0, h = 0, S = 0;
+    BTSerial_read_word (str, MAX_CMD_SIZE);
+    input_info.year = strtol (str, NULL, 0);
+    BTSerial_read_word (str, MAX_CMD_SIZE);
+    input_info.month = strtol (str, NULL, 0);
+    BTSerial_read_word (str, MAX_CMD_SIZE);
+    input_info.day = strtol (str, NULL, 0);
+    BTSerial_read_word (str, MAX_CMD_SIZE);
+    input_info.hour = strtol (str, NULL, 0);
+    BTSerial_read_word (str, MAX_CMD_SIZE);
+    input_info.minute = strtol (str, NULL, 0);
+    BTSerial_read_word (str, MAX_CMD_SIZE);
+    input_info.time_zone = strtod (str, NULL);
+    BTSerial_read_word (str, MAX_CMD_SIZE);
+    input_info.latitude = strtod (str, NULL);
+    BTSerial_read_word (str, MAX_CMD_SIZE);
+    input_info.longitude = strtod (str, NULL);
+
+   /* double A = 0, h = 0, S = 0;
     S = calc_MST (input_info);
     EQ_to_AZ (alpha, delta, input_info.latitude, S, &A, &h);
     AZ_motor.setCurrent ((int)(A*MICROSTEP*AZ_GEAR_RATIO));
-    H_motor.setCurrent ((int)(h*MICROSTEP*H_GEAR_RATIO));
+    H_motor.setCurrent ((int)(h*MICROSTEP*H_GEAR_RATIO));*/
 
     return 0;
 }
@@ -284,7 +223,7 @@ int calibrate1_func ()
 int get_move_angle (double* angle)
 {
     char str [MAX_CMD_SIZE] = "";
-    Serial_read_word (str, MAX_CMD_SIZE);
+    BTSerial_read_word (str, MAX_CMD_SIZE);
     if (strcmp (str, "") == 0 || !is_number(str, MAX_CMD_SIZE))
     {
         Serial.println ("Syntax error: expected angle value");
@@ -292,7 +231,7 @@ int get_move_angle (double* angle)
     }
     *angle = strtod (str, NULL);
 
-    Serial_read_word (str, MAX_CMD_SIZE);
+    BTSerial_read_word (str, MAX_CMD_SIZE);
     if (strcmp (str, "") != 0)
     {
         Serial.println ("Syntax error: unexpected command after angle value");
@@ -310,45 +249,38 @@ int stop_func ()
 
 int up_func ()
 {
-    /*double angle = 0;
-    if (get_move_angle (&angle) == 1)
-        return 1;*/
-
-    //H_motor.setTargetDeg (angle, RELATIVE);
-    H_motor.setSpeedDeg (45);
+    H_motor.setSpeedDeg (users_speed);
     return 0;
 }
 
 int down_func ()
 {
-    /*double angle = 0;
-    if (get_move_angle (&angle) == 1)
-        return 1;*/
-
-    //H_motor.setTargetDeg (-angle, RELATIVE);
-    H_motor.setSpeedDeg (-45);
+    H_motor.setSpeedDeg (-users_speed);
     return 0;
 }
 
 int right_func ()
 {
-    /*double angle = 0;
-    if (get_move_angle (&angle) == 1)
-        return 1;
-
-    AZ_motor.setTargetDeg (angle, RELATIVE);*/
-    AZ_motor.setSpeedDeg (45);
+    AZ_motor.setSpeedDeg (users_speed);
     return 0;
 }
 
 int left_func ()
 {
-    /*double angle = 0;
-    if (get_move_angle (&angle) == 1)
-        return 1;
+    AZ_motor.setSpeedDeg (-users_speed);
+    return 0;
+}
 
-    AZ_motor.setTargetDeg (-angle, RELATIVE);*/
-    AZ_motor.setSpeedDeg (-45);
+int setspeed_func ()
+{
+    char str [MAX_CMD_SIZE] = "";
+    BTSerial_read_word (str, MAX_CMD_SIZE);
+    if (strcmp (str, "") == 0 || !is_number(str, MAX_CMD_SIZE))
+    {
+        Serial.println ("Syntax error: expected speed value");
+        return 1;
+    }
+    users_speed = strtod (str, NULL);
     return 0;
 }
 
@@ -393,7 +325,7 @@ double calc_MST (time_date_place input_info)
 {
     int Y = input_info.year;
     int M = input_info.month;
-    int D = input_info.date - 1;
+    int D = input_info.day - 1;
     int H = input_info.hour - input_info.time_zone;
     //учет возможного изменения даты, времени и года из-за часового пояса
     if (H < 0)

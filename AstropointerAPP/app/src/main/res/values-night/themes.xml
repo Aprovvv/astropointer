@@ -6,4 +6,15 @@
         <item name="colorOnPrimary">@color/dark_onPrimary</item>
         <item name="android:windowBackground">@color/dark_background</item>
     </style>
+
+    <style name="TextAppearance.Material3.BodyMedium" parent="TextAppearance.Material3.BodyMedium" tools:ignore="ResourceCycle">
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:textColor">@color/text_primary</item>
+    </style>
+
+    <style name="Widget.App.SeekBar" parent="android:Widget.SeekBar">
+        <item name="android:progressDrawable">@drawable/seekbar_track</item>
+        <item name="android:thumb">@drawable/seekbar_thumb</item>
+    </style>
 </resources>

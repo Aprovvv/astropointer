@@ -14,6 +14,37 @@
     <!-- Кнопка-стрелка -->
 
     <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnLocation"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:layout_width="150dp"
+        android:layout_height="80dp"
+        android:text="Location"
+        android:textColor="@color/button_outline"
+        app:cornerRadius="8dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="1.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/btnConnect"
+        app:strokeColor="@color/button_outline"
+        app:strokeWidth="2dp" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnCalibrate"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:layout_width="150dp"
+        android:layout_height="80dp"
+        android:layout_marginTop="604dp"
+        android:text="Calibrate"
+        android:textColor="@color/button_outline"
+        app:cornerRadius="8dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:strokeColor="@color/button_outline"
+        app:strokeWidth="2dp" />
+
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/btnCenter"
         style="@style/Widget.MaterialComponents.Button.OutlinedButton"
         android:layout_width="96dp"
@@ -96,18 +127,18 @@
         app:strokeWidth="2dp" />
 
     <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnSend"
+        android:id="@+id/btnGoto"
         style="@style/Widget.MaterialComponents.Button.OutlinedButton"
         android:layout_width="150dp"
         android:layout_height="80dp"
-        app:layout_constraintVertical_bias="0.0"
-        android:text="Send"
+        android:layout_marginTop="604dp"
+        android:text="Goto"
         android:textColor="@color/button_outline"
         app:cornerRadius="8dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="1.0"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:strokeColor="@color/button_outline"
         app:strokeWidth="2dp" />
 
@@ -146,4 +177,40 @@
         app:strokeColor="@color/button_outline"
         app:strokeWidth="2dp"
         android:layout_marginBottom="0dp"/>
+
+    <!-- SeekBar в стиле Material -->
+
+    <TextView
+        android:id="@+id/textView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginBottom="100dp"
+        android:fontFamily="sans-serif-medium"
+        android:letterSpacing="0.08"
+        android:text="SPEED (DEG/SEC)"
+        android:textColor="@color/text_primary"
+        android:textSize="14sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <com.google.android.material.slider.Slider
+        android:id="@+id/slider"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:valueFrom="0"
+        android:valueTo="9"
+        android:stepSize="1"
+        android:value="5"
+        app:haloColor="@color/seekbar_thumb"
+        app:labelBehavior="withinBounds"
+        app:layout_constraintBottom_toBottomOf="@id/textView"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toEndOf="@id/textView"
+        app:layout_constraintTop_toTopOf="@id/textView"
+        app:layout_constraintVertical_bias="0.733"
+        app:thumbColor="@color/seekbar_thumb"
+        app:trackColor="@color/seekbar_track" />
 </androidx.constraintlayout.widget.ConstraintLayout>

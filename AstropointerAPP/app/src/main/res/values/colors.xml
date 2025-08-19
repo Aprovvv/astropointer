@@ -7,4 +7,8 @@
     <color name="button_outline">@color/light_primary</color> <!-- Фиолетовый контур -->
     <color name="button_bg">@color/light_background</color>     <!-- Совпадает со светлым фоном -->
     <color name="ripple_color">#F9BEBE</color> <!-- Чёрный с 12% прозрачностью -->
+    <color name="seekbar_track">#E0E0E0</color>
+    <color name="seekbar_progress">@color/light_primary</color>
+    <color name="seekbar_thumb">@color/light_primary</color>
+    <color name="text_primary">@color/light_primary</color>
 </resources>
