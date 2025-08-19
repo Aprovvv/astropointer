@@ -11,6 +11,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.MotionEvent
 import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -43,26 +44,85 @@ class MainActivity : AppCompatActivity() {
 
         val btnConnect = findViewById<Button>(R.id.btnConnect)
         val btnSend = findViewById<Button>(R.id.btnSend)
+        val btnUp = findViewById<Button>(R.id.btnUp)
+        val btnDown = findViewById<Button>(R.id.btnDown)
+        val btnRight = findViewById<Button>(R.id.btnRight)
+        val btnLeft = findViewById<Button>(R.id.btnLeft)
 
         btnConnect.setOnClickListener {
             if (!ensureBluetoothEnabled()) return@setOnClickListener
             showPairedDevicesDialog()
         }
 
-        btnSend.setOnClickListener {
-            if (bluetoothSocket?.isConnected == true) {
-                try {
-                    val msg = "1"
-                    bluetoothSocket?.outputStream?.write(msg.toByteArray())
-                    Toast.makeText(this, "Sent: $msg", Toast.LENGTH_SHORT).show()
-                } catch (e: IOException) {
-                    Toast.makeText(this, "Ошибка отправки: ${e.message}", Toast.LENGTH_SHORT).show()
-                } catch (se: SecurityException) {
-                    Toast.makeText(this, "Нет разрешения для отправки", Toast.LENGTH_SHORT).show()
+        /*btnUp.setOnClickListener {
+            send_message("up")
+        }*/
+
+        btnUp.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    send_message("up")
                 }
-            } else {
-                Toast.makeText(this, "Нет соединения", Toast.LENGTH_SHORT).show()
+                MotionEvent.ACTION_UP -> {
+                    send_message("stop")
+                }
             }
+            false // true = событие обработано
+        }
+
+        btnDown.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    send_message("down")
+                }
+                MotionEvent.ACTION_UP -> {
+                    send_message("stop")
+                }
+            }
+            false // true = событие обработано
+        }
+
+        btnRight.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    send_message("right")
+                }
+                MotionEvent.ACTION_UP -> {
+                    send_message("stop")
+                }
+            }
+            false // true = событие обработано
+        }
+
+        btnLeft.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    send_message("left")
+                }
+                MotionEvent.ACTION_UP -> {
+                    send_message("stop")
+                }
+            }
+            false // true = событие обработано
+        }
+
+        btnSend.setOnClickListener {
+            send_message("1")
+        }
+    }
+
+    private fun send_message(msg: String) {
+        if (bluetoothSocket?.isConnected == true) {
+            try {
+                bluetoothSocket?.outputStream?.write(msg.toByteArray())
+                Toast.makeText(this, "Sent: $msg", Toast.LENGTH_SHORT).show()
+            } catch (e: IOException) {
+                Toast.makeText(this, "Ошибка отправки: ${e.message}", Toast.LENGTH_SHORT).show()
+            } catch (se: SecurityException) {
+                Toast.makeText(this, "Нет разрешения для отправки", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(this, "Нет соединения", Toast.LENGTH_SHORT).show()
         }
     }
 

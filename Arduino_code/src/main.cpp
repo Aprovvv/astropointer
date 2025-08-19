@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <SoftwareSerial.h>
 #include "GyverStepper2.h"
 
 const size_t MAX_CMD_SIZE = 32;
@@ -40,6 +41,7 @@ int up_func ();
 int down_func ();
 int right_func ();
 int left_func ();
+int stop_func ();
 
 static bool is_number (const char* str, size_t size);
 static bool is_nat_number (const char* str, size_t size);
@@ -58,6 +60,7 @@ const command cmd_list[] =
     {"down", down_func},
     {"right", right_func},
     {"left", left_func},
+    {"stop", stop_func},
 };
 
 GStepper2<STEPPER2WIRE> AZ_motor(STEPS_PER_REV*MICROSTEP*AZ_GEAR_RATIO,
@@ -67,9 +70,15 @@ GStepper2<STEPPER2WIRE> H_motor(STEPS_PER_REV*MICROSTEP*AZ_GEAR_RATIO,
 
 struct time_date_place input_info = {0};
 
+const int RXPin = 12, TXPin = 13;
+
+SoftwareSerial BTSerial (RXPin, TXPin);
+
 void setup()
 {
     Serial.begin (9600);
+    BTSerial.begin (9600);
+
     AZ_motor.setMaxSpeed (100);
     AZ_motor.setAcceleration(50);
 
@@ -87,7 +96,7 @@ void loop()
     AZ_motor.tick();
     H_motor.tick();
     char cmd [MAX_CMD_SIZE] = "";
-    if (Serial.available())
+    if (BTSerial.available())
     {
         Serial_read_word (cmd, MAX_CMD_SIZE);
         for (size_t i = 0; i < sizeof(cmd_list) / sizeof (command); i++)
@@ -99,7 +108,8 @@ void loop()
                 goto loopstart;
             }
         }
-        Serial.println ("Undefined command");
+        Serial.print ("Undefined command ");
+        Serial.println (cmd);
     }
 
 }
@@ -115,7 +125,7 @@ int Serial_read_word(char* dest, size_t size)
     {
         //Ждем, пока чето появится в буфере
         start_time = millis ();
-        while (!Serial.available ())
+        while (!BTSerial.available ())
         {
             if (millis() - start_time > TIMELIMIT) //если не появилось тикаем
             {
@@ -124,7 +134,7 @@ int Serial_read_word(char* dest, size_t size)
             }
         }
 
-        ch = Serial.read ();
+        ch = BTSerial.read ();
         if (!isspace (ch) && ch != '\n')
             dest[i++] = ch;
         else
@@ -291,43 +301,54 @@ int get_move_angle (double* angle)
     return 0;
 }
 
+int stop_func ()
+{
+    H_motor.setSpeed (0);
+    AZ_motor.setSpeed (0);
+    return 0;
+}
+
 int up_func ()
 {
-    double angle = 0;
+    /*double angle = 0;
     if (get_move_angle (&angle) == 1)
-        return 1;
+        return 1;*/
 
-    H_motor.setTargetDeg (angle, RELATIVE);
+    //H_motor.setTargetDeg (angle, RELATIVE);
+    H_motor.setSpeedDeg (45);
     return 0;
 }
 
 int down_func ()
 {
-    double angle = 0;
+    /*double angle = 0;
     if (get_move_angle (&angle) == 1)
-        return 1;
+        return 1;*/
 
-    H_motor.setTargetDeg (-angle, RELATIVE);
+    //H_motor.setTargetDeg (-angle, RELATIVE);
+    H_motor.setSpeedDeg (-45);
     return 0;
 }
 
 int right_func ()
 {
-    double angle = 0;
+    /*double angle = 0;
     if (get_move_angle (&angle) == 1)
         return 1;
 
-    AZ_motor.setTargetDeg (angle, RELATIVE);
+    AZ_motor.setTargetDeg (angle, RELATIVE);*/
+    AZ_motor.setSpeedDeg (45);
     return 0;
 }
 
 int left_func ()
 {
-    double angle = 0;
+    /*double angle = 0;
     if (get_move_angle (&angle) == 1)
         return 1;
 
-    AZ_motor.setTargetDeg (-angle, RELATIVE);
+    AZ_motor.setTargetDeg (-angle, RELATIVE);*/
+    AZ_motor.setSpeedDeg (-45);
     return 0;
 }
 
