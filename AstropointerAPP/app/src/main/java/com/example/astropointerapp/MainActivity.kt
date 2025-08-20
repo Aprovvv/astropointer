@@ -151,7 +151,7 @@ class MainActivity : AppCompatActivity() {
             input_ra_dec { result ->
                 if (result != null) {
                     val (ra, dec) = result
-                    var str = "calibrate1" + ra + " " + dec + " "
+                    var str = "cal " + ra + " " + dec + " "
                     //отправляем данные о месте и времени
                     val date = Date(System.currentTimeMillis()) // текущее время
                     val format = SimpleDateFormat("yyyy MM dd HH mm", Locale.getDefault())
@@ -163,7 +163,7 @@ class MainActivity : AppCompatActivity() {
 
                     val coords = loadCoordinates(this)
                     if (coords != null) {
-                        str = str + coords.first + " " + coords.second
+                        str = str + String.format("%.3f %.3f", coords.first, coords.second)
                         send_message(str)
                     } else {
                         Toast.makeText(this, "Error: coords not found", Toast.LENGTH_SHORT).show()
@@ -180,7 +180,8 @@ class MainActivity : AppCompatActivity() {
             AlertDialog.Builder(this)
                     val coords = loadCoordinates(this)
                     if (coords != null) {
-                        AlertDialog.Builder(this).setMessage("Current Location: " + coords.first + " " + coords.second)
+                        AlertDialog.Builder(this).setMessage(
+                            "Current Location: " + String.format("%.3f %.3f", coords.first, coords.second))
                     } else {
                         AlertDialog.Builder(this).setMessage("Current Location: Undefined")
                     }

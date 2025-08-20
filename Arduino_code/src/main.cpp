@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <SoftwareSerial.h>
 #include "GyverStepper2.h"
-
+//FIXME: пробел после команд
 struct time_date_place
 {
     int year;
