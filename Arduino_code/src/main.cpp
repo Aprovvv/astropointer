@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <SoftwareSerial.h>
 #include "GyverStepper2.h"
-//FIXME: пробел после команд
+
 struct time_date_place
 {
     int year;
@@ -195,21 +195,33 @@ int calibrate1_func ()
     delta = strtod (str, NULL);
 
     BTSerial_read_word (str, MAX_CMD_SIZE);
-    input_info.year = strtol (str, NULL, 0);
+    input_info.year = strtol (str, NULL, 10);
     BTSerial_read_word (str, MAX_CMD_SIZE);
-    input_info.month = strtol (str, NULL, 0);
+
+    input_info.month = strtol (str, NULL, 10);
     BTSerial_read_word (str, MAX_CMD_SIZE);
-    input_info.day = strtol (str, NULL, 0);
+
+    input_info.day = strtol (str, NULL, 10);
     BTSerial_read_word (str, MAX_CMD_SIZE);
-    input_info.hour = strtol (str, NULL, 0);
+    input_info.hour = strtol (str, NULL, 10);
     BTSerial_read_word (str, MAX_CMD_SIZE);
-    input_info.minute = strtol (str, NULL, 0);
+    input_info.minute = strtol (str, NULL, 10);
     BTSerial_read_word (str, MAX_CMD_SIZE);
     input_info.time_zone = strtod (str, NULL);
     BTSerial_read_word (str, MAX_CMD_SIZE);
     input_info.latitude = strtod (str, NULL);
     BTSerial_read_word (str, MAX_CMD_SIZE);
     input_info.longitude = strtod (str, NULL);
+
+    Serial.println ("Y M D H m tz lat lon");
+    Serial.print (input_info.year); Serial.print (" ");
+    Serial.print (input_info.month); Serial.print (" ");
+    Serial.print (input_info.day); Serial.print (" ");
+    Serial.print (input_info.hour); Serial.print (" ");
+    Serial.print (input_info.minute); Serial.print (" ");
+    Serial.print (input_info.time_zone); Serial.print (" ");
+    Serial.print (input_info.latitude); Serial.print (" ");
+    Serial.print (input_info.longitude); Serial.print (" ");
 
    /* double A = 0, h = 0, S = 0;
     S = calc_MST (input_info);

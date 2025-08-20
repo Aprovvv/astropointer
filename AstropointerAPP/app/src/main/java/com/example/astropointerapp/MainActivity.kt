@@ -70,11 +70,11 @@ class MainActivity : AppCompatActivity() {
         btnUp.setOnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    send_message("up")
+                    send_message("up ")
                 }
 
                 MotionEvent.ACTION_UP -> {
-                    send_message("stop")
+                    send_message("stop ")
                 }
             }
             false // true = событие обработано
@@ -83,11 +83,11 @@ class MainActivity : AppCompatActivity() {
         btnDown.setOnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    send_message("down")
+                    send_message("down ")
                 }
 
                 MotionEvent.ACTION_UP -> {
-                    send_message("stop")
+                    send_message("stop ")
                 }
             }
             false // true = событие обработано
@@ -96,11 +96,11 @@ class MainActivity : AppCompatActivity() {
         btnRight.setOnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    send_message("right")
+                    send_message("right ")
                 }
 
                 MotionEvent.ACTION_UP -> {
-                    send_message("stop")
+                    send_message("stop ")
                 }
             }
             false // true = событие обработано
@@ -109,11 +109,11 @@ class MainActivity : AppCompatActivity() {
         btnLeft.setOnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    send_message("left")
+                    send_message("left ")
                 }
 
                 MotionEvent.ACTION_UP -> {
-                    send_message("stop")
+                    send_message("stop ")
                 }
             }
             false // true = событие обработано
@@ -151,11 +151,11 @@ class MainActivity : AppCompatActivity() {
             input_ra_dec { result ->
                 if (result != null) {
                     val (ra, dec) = result
-                    var str = "cal " + ra + " " + dec + " "
+                    var str = "cal " + ra + " " + dec
                     //отправляем данные о месте и времени
                     val date = Date(System.currentTimeMillis()) // текущее время
                     val format = SimpleDateFormat("yyyy MM dd HH mm", Locale.getDefault())
-                    str = str + " " + format.format(date) + " "
+                    str = str + " " + format.format(date)
 
                     val timeZone: TimeZone = TimeZone.getDefault()
                     val offset = timeZone.rawOffset / 3600000  // сдвиг в часах (UTC+X)
@@ -163,8 +163,9 @@ class MainActivity : AppCompatActivity() {
 
                     val coords = loadCoordinates(this)
                     if (coords != null) {
-                        str = str + String.format("%.3f %.3f", coords.first, coords.second)
+                        str = str + String.format(Locale.US, "%.3f %.3f", coords.first, coords.second)
                         send_message(str)
+                        println(str)
                     } else {
                         Toast.makeText(this, "Error: coords not found", Toast.LENGTH_SHORT).show()
                     }
@@ -181,7 +182,7 @@ class MainActivity : AppCompatActivity() {
                     val coords = loadCoordinates(this)
                     if (coords != null) {
                         AlertDialog.Builder(this).setMessage(
-                            "Current Location: " + String.format("%.3f %.3f", coords.first, coords.second))
+                            "Current Location: " + String.format(Locale.US, "%.3f %.3f", coords.first, coords.second))
                     } else {
                         AlertDialog.Builder(this).setMessage("Current Location: Undefined")
                     }
