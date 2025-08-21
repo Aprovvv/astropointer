@@ -154,7 +154,7 @@ class MainActivity : AppCompatActivity() {
                     var str = "cal " + ra + " " + dec
                     //отправляем данные о месте и времени
                     val date = Date(System.currentTimeMillis()) // текущее время
-                    val format = SimpleDateFormat("yyyy MM dd HH mm", Locale.getDefault())
+                    val format = SimpleDateFormat("yyyy MM dd HH mm ss", Locale.getDefault())
                     str = str + " " + format.format(date)
 
                     val timeZone: TimeZone = TimeZone.getDefault()

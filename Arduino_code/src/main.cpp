@@ -9,6 +9,7 @@ struct time_date_place
     int day;
     int hour;
     int minute;
+    int second;
     double latitude;
     double longitude;
     double time_zone;
@@ -87,8 +88,8 @@ void setup()
     //AZ_motor.setTargetDeg (3600L, ABSOLUTE);
 
     //тут тестирую, как работают функции для астро расчетов
-    input_info = {2025, 8, 14, 5, 29, 48.4827, 135.083, 10};
-    Serial.println (calc_MST (input_info), 6);
+    //input_info = {2025, 8, 14, 5, 29, 48.4827, 135.083, 10};
+    //Serial.println (calc_MST (input_info), 6);
 }
 
 void loop()
@@ -197,15 +198,15 @@ int calibrate1_func ()
     BTSerial_read_word (str, MAX_CMD_SIZE);
     input_info.year = strtol (str, NULL, 10);
     BTSerial_read_word (str, MAX_CMD_SIZE);
-
     input_info.month = strtol (str, NULL, 10);
     BTSerial_read_word (str, MAX_CMD_SIZE);
-
     input_info.day = strtol (str, NULL, 10);
     BTSerial_read_word (str, MAX_CMD_SIZE);
     input_info.hour = strtol (str, NULL, 10);
     BTSerial_read_word (str, MAX_CMD_SIZE);
     input_info.minute = strtol (str, NULL, 10);
+    BTSerial_read_word (str, MAX_CMD_SIZE);
+    input_info.second = strtol (str, NULL, 10);
     BTSerial_read_word (str, MAX_CMD_SIZE);
     input_info.time_zone = strtod (str, NULL);
     BTSerial_read_word (str, MAX_CMD_SIZE);
@@ -213,21 +214,15 @@ int calibrate1_func ()
     BTSerial_read_word (str, MAX_CMD_SIZE);
     input_info.longitude = strtod (str, NULL);
 
-    Serial.println ("Y M D H m tz lat lon");
-    Serial.print (input_info.year); Serial.print (" ");
-    Serial.print (input_info.month); Serial.print (" ");
-    Serial.print (input_info.day); Serial.print (" ");
-    Serial.print (input_info.hour); Serial.print (" ");
-    Serial.print (input_info.minute); Serial.print (" ");
-    Serial.print (input_info.time_zone); Serial.print (" ");
-    Serial.print (input_info.latitude); Serial.print (" ");
-    Serial.print (input_info.longitude); Serial.print (" ");
-
-   /* double A = 0, h = 0, S = 0;
-    S = calc_MST (input_info);
+    double S = calc_MST(input_info);
+    double A = 0, h = 0;
     EQ_to_AZ (alpha, delta, input_info.latitude, S, &A, &h);
+    /*Serial.println ("A h");
+    Serial.print (A);
+    Serial.print (" ");
+    Serial.print (h);*/
     AZ_motor.setCurrent ((int)(A*MICROSTEP*AZ_GEAR_RATIO));
-    H_motor.setCurrent ((int)(h*MICROSTEP*H_GEAR_RATIO));*/
+    H_motor.setCurrent ((int)(h*MICROSTEP*H_GEAR_RATIO));
 
     return 0;
 }
@@ -370,7 +365,7 @@ double calc_MST (time_date_place input_info)
     DUT += (Y-2025)/4 - (Y-2025)/100 + (Y-2025)/400;//учли високосные
     if (((Y%4 == 0 && Y%100 != 0) || Y%400 == 0) && M < 2)
         DUT--;
-    DUT += H/24.0 + input_info.minute/1440.0;
+    DUT += H/24.0 + input_info.minute/1440.0 + input_info.second/86400.0;
     DUT -= 0.5;//учли, что отсчитывается от полудня 01.01.2000
 
     double time_since_J2025 = 0.781642 + DUT*1.002737909;
@@ -387,17 +382,27 @@ double calc_MST (time_date_place input_info)
 void EQ_to_AZ (double alpha, double delta, double phi,
                double S, double* A, double* h)
 {
-    double rad_alpha = alpha*PI/24.0;
+    double rad_alpha = alpha*PI/12.0;
     double rad_delta = delta*PI/180.0;
-    double rad_S = S*PI/24.0;
+    double rad_S = S*PI/12.0;
     double rad_phi = phi*PI/180.0;
     double rad_A = 0, rad_h = 0;
 
     double t_angle = rad_S - rad_alpha;
+
+    if (t_angle < 0)
+        t_angle += 2*PI;
+    if (t_angle > 2*PI)
+        t_angle -= 2*PI;
+
     rad_h = asin (sin(rad_phi)*sin(rad_delta)
                   + cos(rad_phi)*cos(rad_delta)*cos(t_angle));
 
-    rad_A = asin (cos(rad_delta)*sin(t_angle) / cos(rad_h));//FIXME: сделать азимут от 0 до 360
+    rad_A = acos (( -sin(rad_delta) + sin(rad_phi)*sin(rad_h)) / (cos(rad_phi)*cos(rad_h)));
+    Serial.print ("t = ");
+    Serial.println (t_angle);
+    if (t_angle > PI )
+        rad_A = 2*PI - rad_A;
 
     *A = rad_A * 180 / PI;
     *h = rad_h * 180 / PI;
@@ -408,16 +413,22 @@ void AZ_to_EQ (double A, double h, double phi,
 {
     double rad_A = A*PI/180.0;
     double rad_h = h*PI/180.0;
-    double rad_S = S*PI/24.0;
+    double rad_S = S*PI/12.0;
     double rad_phi = phi*PI/180.0;
     double rad_alpha = 0, rad_delta = 0;
 
-    double t_angle = acos ( (sin(rad_h) - sin(rad_phi)*sin(rad_delta))
-                            / (cos(rad_phi)*cos(rad_delta)));
+    rad_delta = asin (sin(rad_phi) * sin(rad_h) - cos(rad_phi)*cos(rad_h)*cos(rad_A));
+
+    double t_angle = acos ((sin(rad_h) - sin(rad_phi)*sin(rad_delta)) / (cos(rad_phi)*cos(rad_delta)));
+    if (A > 180)
+        t_angle = 2*PI - t_angle;
 
     rad_alpha = rad_S - t_angle;
-    rad_delta = acos (cos(rad_h)*sin(rad_A) / sin(t_angle));
+    if (rad_alpha < 0)
+        rad_alpha += 2*PI;
+    if (rad_alpha > 2*PI)
+        rad_alpha -= 2*PI;
 
-    *alpha = rad_alpha/PI*24.0;
-    *delta = rad_delta/PI*180.0;//FIXME: не знаю точно что, но что-то пофиксить точно надо
+    *alpha = rad_alpha/PI*12.0;
+    *delta = rad_delta/PI*180.0;
 }
